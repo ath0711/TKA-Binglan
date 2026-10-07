@@ -236,7 +236,7 @@ var TKA = (function () {
 </script>
 <script>
 (function () {
-  var LIMIT = 75 * 60, KEY = "tka-en1-protected";
+  var LIMIT = 75 * 60, MAXLEFT = 3, KEY = "tka-en1-protected";
   var FORM = "https://docs.google.com/forms/d/e/1FAIpQLSd6vQHgyvU20PgHz57NnVeyrosqmW6-tePWX14m0WT776sRrw/";
   var F = { name: "entry.1609432294", kelas: "entry.810463712", score: "entry.1749331472", note: "entry.1256229007" };
   var T = TKA, QS = T.QS, L = T.L;
@@ -246,7 +246,7 @@ var TKA = (function () {
 
   function fresh(attempt) {
     return { name: "", kelas: "", page: -1, attempt: attempt, ans: QS.map(T.blank), order: null,
-             startedAt: 0, endedAt: 0, timeUp: false, log: [], awayAt: 0, sent: 0 };
+             startedAt: 0, endedAt: 0, timeUp: false, kicked: false, log: [], awayAt: 0, sent: 0 };
   }
   function load() {
     try {
@@ -299,13 +299,15 @@ var TKA = (function () {
     if (state.log.length < 80) state.log.push({ k: kind, at: Math.round(elapsed() - (dur || 0)), d: dur == null ? null : Math.round(dur) });
     save();
     if (kind === "left" || kind === "blur" || kind === "fsexit" || kind === "reload") {
-      var n = state.log.filter(function (e) { return e.k === "left" || e.k === "blur"; }).length;
-      alertBox.textContent = "You " + NAMES[kind].split(" (")[0] + ". This is recorded and sent to your teacher" + (n ? " (" + n + " time" + (n > 1 ? "s" : "") + ")." : ".");
+      var n = state.log.filter(function (e) { return e.k === "left"; }).length;
+      alertBox.textContent = "You " + NAMES[kind].split(" (")[0] + ". This is recorded and sent to your teacher. Leaving the page " + MAXLEFT +
+        " times ends the quiz: you have left " + n + " of " + MAXLEFT + ".";
       alertBox.hidden = false;
+      if (kind === "left" && n >= MAXLEFT) { state.kicked = true; finish(); }
     }
   }
   function notes() {
-    var parts = ["try " + state.attempt, "time used " + mmss(((state.endedAt || Date.now()) - state.startedAt) / 1000) + (state.timeUp ? " (time ran out)" : "")];
+    var parts = ["try " + state.attempt, "time used " + mmss(((state.endedAt || Date.now()) - state.startedAt) / 1000) + (state.timeUp ? " (time ran out)" : "") + (state.kicked ? " (AUTO-SUBMITTED after leaving " + MAXLEFT + " times)" : "")];
     var any = false;
     Object.keys(NAMES).forEach(function (k) {
       var ev = state.log.filter(function (e) { return e.k === k; });
@@ -392,6 +394,7 @@ var TKA = (function () {
     ["4 texts, 5 questions each. Your question order is different from your friends' order.",
      "You have 75 minutes. The clock starts when you press Start and does not stop. When it reaches zero, your answers are sent as they are.",
      "Stay on this page. Opening another tab or app, minimising the browser, copying text and similar actions are recorded and sent to your teacher with your score.",
+     "If you leave the page 3 times, the quiz ends immediately and your answers are sent as they are. Turn on Do Not Disturb and close other apps before you start.",
      "Some questions have one answer, some ask for TWO answers, and some ask you to judge three statements. All parts must be right to score the point.",
      "Your score is sent to your teacher automatically when you finish."
     ].forEach(function (t) { rules.appendChild(el("li", null, t)); });
@@ -521,6 +524,7 @@ var TKA = (function () {
     send(score);
     card.appendChild(el("span", "label", state.name + (state.kelas ? " · " + state.kelas : "")));
     var s = el("p", "score", String(score)); s.appendChild(el("small", null, " / " + QS.length)); card.appendChild(s);
+    if (state.kicked) card.appendChild(el("p", "err", "The quiz ended because you left the page " + MAXLEFT + " times. Your answers were sent as they were."));
     if (state.timeUp) card.appendChild(el("p", "err", "Time ran out. Your answers were sent as they were."));
     var box = el("div", "send");
     box.appendChild(el("h3", null, "Your score has been sent to your teacher"));
